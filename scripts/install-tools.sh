@@ -47,13 +47,10 @@ sudo apt install dotnet-sdk-8.0 -y
 echo "========================================"
 echo "3. Installing NVM & Node.js 24"
 echo "========================================"
-# Download and run the NVM installer script
-curl -o- https://githubusercontent.com | bash
-
-echo "Loading NVM into the current shell session..."
-# Load nvm configuration dynamically into this running script session
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+# Download and install nvm:
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash
+# in lieu of restarting the shell
+\. "$HOME/.nvm/nvm.sh"
 
 echo "Downloading and installing Node.js 24..."
 nvm install 24

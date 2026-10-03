@@ -677,7 +677,24 @@ Logs:
 logs/
 ```
 
-# 13. Troubleshooting
+# 13. Docker Containerization
+
+```bash
+cd services/catalog-service
+docker build -t microservices-catalog:1.0 .
+docker run -d -p 8082:8082 --name catalog-app microservices-catalog:1.0
+
+If you spin up individual containers, it may not work because localhost means it is within the container, and hence it wont be able to find out other services as well as database. The postgre db is running on the host.
+
+We can create a docker-compose.yaml file and provide the required environment variables for each service including the db container.
+
+docker compose up --build -d
+docker compose ps
+docker compose down
+
+```
+
+# 14. Troubleshooting
 
 ## PostgreSQL connection refused
 

@@ -1,0 +1,189 @@
+version: '3.8'
+
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+  # ==========================================================================
+  # Database Layer
+  # ==========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: microservices-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Automatically initializes the system with your bootstrap configurations
+      - ./database:/docker-entrypoint-initdb.d
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # Core Microservices Backend Layer
+  # ==========================================================================
+  auth-service:
+    build:
+      context: ./services/auth-service
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
+      - SPRING_DATASOURCE_USERNAME=microapp
+      - SPRING_DATASOURCE_PASSWORD=microapp123
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  catalog-service:
+    build:
+      context: ./services/catalog-service
+    container_name: catalog-service
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=microapp
+      - DB_PASSWORD=microapp123
+      - DB_NAME=catalog_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+    container_name: inventory-service
+    ports:
+      - "8083:8083"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=microapp
+      - DB_PASSWORD=microapp123
+      - DB_NAME=inventory_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+    container_name: notification-service
+    ports:
+      - "8086:8086"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=microapp
+      - DB_PASSWORD=microapp123
+      - DB_NAME=notification_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  order-service:
+    build:
+      context: ./services/order-service
+    container_name: order-service
+    ports:
+      - "8084:8084"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=microapp
+      - DB_PASSWORD=microapp123
+      - DB_NAME=order_db
+      # Update service locations to point to Docker containers instead of localhost
+      - CATALOG_SERVICE_URL=http://catalog-service:8082
+      - INVENTORY_SERVICE_URL=http://inventory-service:8083
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8086
+    depends_on:
+      postgres:
+        condition: service_healthy
+      catalog-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  payment-service:
+    build:
+      context: ./services/payment-service
+    container_name: payment-service
+    ports:
+      - "8085:8085"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=payment_db;Username=microapp;Password=microapp123;
+      - ORDER_SERVICE_URL=http://order-service:8084
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8086
+    depends_on:
+      postgres:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+    container_name: analytics-service
+    ports:
+      - "8087:8087"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=microapp
+      - DB_PASSWORD=microapp123
+      - DB_NAME=analytics_db
+      - CATALOG_SERVICE_URL=http://catalog-service:8082
+      - INVENTORY_SERVICE_URL=http://inventory-service:8083
+      - ORDER_SERVICE_URL=http://order-service:8084
+      - PAYMENT_SERVICE_URL=http://payment-service:8085
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  # ==========================================================================
+  # User Interface Frontend Layer
+  # ==========================================================================
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend-ui
+    ports:
+      - "3000:80"
+    depends_on:
+      - auth-service
+      - catalog-service
+      - inventory-service
+    networks:
+      - microservices-net
